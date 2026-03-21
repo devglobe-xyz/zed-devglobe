@@ -17,7 +17,6 @@ var FETCH_TIMEOUT_MS = 15e3;
 var GEO_TIMEOUT_MS = 1e4;
 
 // ../../devglobe-core/src/geo.ts
-var import_https = require("https");
 var import_os = require("os");
 var import_path = require("path");
 
@@ -34,14 +33,19 @@ function round1(n) {
   return Math.round(n * 10) / 10;
 }
 function normalizeCity(name) {
-  return name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  return name.replace(/\s*\(.*\)$/, "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+function distanceDeg(lat1, lon1, lat2, lon2) {
+  const dLat = lat1 - lat2;
+  const dLon = (lon1 - lon2) * Math.cos((lat1 + lat2) / 2 * (Math.PI / 180));
+  return Math.sqrt(dLat ** 2 + dLon ** 2);
 }
 function snapToCity(cityName, countryCode, lat, lon) {
   if (cityName && countryCode) {
     const country = city_centers_default[countryCode.toUpperCase()];
     if (country) {
       const center = country[normalizeCity(cityName)];
-      if (center) return center;
+      if (center && distanceDeg(lat, lon, center[0], center[1]) < 2) return center;
     }
   }
   const angle = Math.random() * 2 * Math.PI;
@@ -53,44 +57,32 @@ function snapToCity(cityName, countryCode, lat, lon) {
 function validCoords(lat, lon) {
   return lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
 }
-function fetchJson(url) {
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => {
-      req.destroy();
-      resolve(null);
-    }, GEO_TIMEOUT_MS);
-    const req = (0, import_https.request)(
-      url,
-      { timeout: GEO_TIMEOUT_MS },
-      (res) => {
-        const chunks = [];
-        res.on("data", (c) => chunks.push(c));
-        res.on("end", () => {
-          clearTimeout(timer);
-          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-            try {
-              resolve(JSON.parse(Buffer.concat(chunks).toString()));
-            } catch {
-              resolve(null);
-            }
-          } else {
-            resolve(null);
-          }
-        });
-      }
-    );
-    req.on("error", () => {
-      clearTimeout(timer);
-      resolve(null);
-    });
-    req.end();
-  });
+function toNumber(v) {
+  if (typeof v === "number" && isFinite(v)) return v;
+  if (typeof v === "string") {
+    const n = parseFloat(v);
+    if (isFinite(n)) return n;
+  }
+  return null;
+}
+async function fetchJson(url) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), GEO_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 async function fromFreeIpApi() {
   const data = await fetchJson("https://free.freeipapi.com/api/json");
   if (!data) return null;
-  const lat = typeof data.latitude === "number" ? data.latitude : null;
-  const lon = typeof data.longitude === "number" ? data.longitude : null;
+  const lat = toNumber(data.latitude);
+  const lon = toNumber(data.longitude);
   if (lat == null || lon == null || !validCoords(lat, lon)) return null;
   const city = data.cityName && data.countryName ? `${data.cityName}, ${data.countryName}` : data.cityName ?? data.countryName ?? null;
   const [snappedLat, snappedLon] = snapToCity(
@@ -110,8 +102,8 @@ async function fromFreeIpApi() {
 async function fromIpApiCo() {
   const data = await fetchJson("https://ipapi.co/json/");
   if (!data) return null;
-  const lat = typeof data.latitude === "number" ? data.latitude : null;
-  const lon = typeof data.longitude === "number" ? data.longitude : null;
+  const lat = toNumber(data.latitude);
+  const lon = toNumber(data.longitude);
   if (lat == null || lon == null || !validCoords(lat, lon)) return null;
   const city = data.city && data.country_name ? `${data.city}, ${data.country_name}` : data.city ?? data.country_name ?? null;
   const [snappedLat, snappedLon] = snapToCity(
@@ -126,6 +118,27 @@ async function fromIpApiCo() {
     lon: snappedLon,
     countryCode: data.country_code ?? null,
     countryName: data.country_name ?? null
+  };
+}
+async function fromIpWhoIs() {
+  const data = await fetchJson("https://ipwho.is/");
+  if (!data || data.success === false) return null;
+  const lat = toNumber(data.latitude);
+  const lon = toNumber(data.longitude);
+  if (lat == null || lon == null || !validCoords(lat, lon)) return null;
+  const city = data.city && data.country ? `${data.city}, ${data.country}` : data.city ?? data.country ?? null;
+  const [snappedLat, snappedLon] = snapToCity(
+    data.city,
+    data.country_code,
+    lat,
+    lon
+  );
+  return {
+    city,
+    lat: snappedLat,
+    lon: snappedLon,
+    countryCode: data.country_code ?? null,
+    countryName: data.country ?? null
   };
 }
 function titleCase(s) {
@@ -167,7 +180,7 @@ async function fetchGeolocation(anonymous = false) {
   if (memCached && Date.now() - memLastFetch < GEO_CACHE_TTL) {
     return anonymous ? getAnonymousLocationMemory(memCached) : memCached;
   }
-  const next = await fromFreeIpApi() ?? await fromIpApiCo();
+  const next = await fromFreeIpApi() ?? await fromIpApiCo() ?? await fromIpWhoIs();
   if (!next) {
     return memCached ? anonymous ? getAnonymousLocationMemory(memCached) : memCached : null;
   }
@@ -429,6 +442,8 @@ var HEADERS = {
   "apikey": SUPABASE_ANON_KEY,
   "Authorization": `Bearer ${SUPABASE_ANON_KEY}`
 };
+var PLATFORM_MAP = { darwin: "macOS", linux: "Linux", win32: "Windows" };
+var PLATFORM = PLATFORM_MAP[process.platform] ?? process.platform;
 async function sendHeartbeat(params) {
   const { apiKey, editor, anonymous, shareRepo, filePath, cwd, language: explicitLang } = params;
   const lang = explicitLang ?? (filePath ? langFromPath(filePath) : null);
@@ -447,11 +462,12 @@ async function sendHeartbeat(params) {
   body.p_anonymous = anonymous;
   body.p_share_repo = shareRepo;
   if (repo && shareRepo) body.p_repo = repo;
+  body.p_platform = PLATFORM;
   let res;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    res = await fetch(`${SUPABASE_URL}/functions/v1/heartbeat`, {
+    res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/heartbeat`, {
       method: "POST",
       headers: HEADERS,
       body: JSON.stringify(body),
@@ -469,14 +485,16 @@ async function sendHeartbeat(params) {
   const data = await res.json();
   return { todaySeconds: data.today_seconds ?? 0, language: lang };
 }
+var MAX_STATUS_LENGTH = 100;
 async function updateStatusMessage(apiKey, message) {
+  const truncated = message.slice(0, MAX_STATUS_LENGTH);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/update_status_message`, {
       method: "POST",
       headers: HEADERS,
-      body: JSON.stringify({ p_key: apiKey, p_message: message }),
+      body: JSON.stringify({ p_key: apiKey, p_message: truncated }),
       signal: controller.signal
     });
     return res.ok;

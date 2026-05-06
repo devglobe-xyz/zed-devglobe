@@ -5,7 +5,6 @@ Show your live coding presence on the [DevGlobe](https://devglobe.xyz) world map
 ## Requirements
 
 - [Zed](https://zed.dev) editor
-- [Node.js](https://nodejs.org) 18 or later
 - A DevGlobe API key from [devglobe.xyz/dashboard/settings](https://devglobe.xyz/dashboard/settings)
 
 ## Setup
@@ -22,17 +21,11 @@ Install DevGlobe from the Zed extensions marketplace, or as a dev extension:
 2. `Cmd+Shift+P` (macOS) or `Ctrl+Shift+P` (Linux) → "zed: install dev extension"
 3. Select this folder
 
+On first activation, the extension downloads the matching `devglobe-core` binary for your platform from [GitHub Releases](https://github.com/Nako0/devglobe-extension/releases) (one-time, ~60 MB).
+
 ### 3. Configure DevGlobe
 
-Run the setup command from your terminal:
-
-```bash
-node /path/to/zed-devglobe/server/dist/server.js setup devglobe_YOUR_KEY_HERE
-```
-
-This writes your key to `~/.devglobe/config.toml` (mode `0600`).
-
-Or create the file manually:
+Create your config file:
 
 ```bash
 mkdir -p ~/.devglobe
@@ -51,16 +44,9 @@ When you open a project, Zed may ask you to trust the worktree. Accept to allow 
 
 Open any code file and start editing. You'll appear on the globe within 30 seconds. The extension detects your language automatically.
 
-### Update status message
-
-```bash
-node /path/to/zed-devglobe/server/dist/server.js status "Working on my project"
-node /path/to/zed-devglobe/server/dist/server.js status ""  # clear
-```
-
 ## How it works
 
-The extension runs a lightweight Language Server (LSP) that receives file open/change/save events from Zed. It uses DevGlobe's shared core to send heartbeats every 30 seconds while you're actively coding. After 1 minute of inactivity, heartbeats pause automatically.
+The extension downloads the prebuilt `devglobe-core` binary on first activation, then runs it as a Language Server. The LSP receives file open/change/save events from Zed and sends heartbeats every 30 seconds while you're actively coding. After 1 minute of inactivity, heartbeats pause automatically.
 
 ## Supported languages
 
@@ -78,4 +64,4 @@ Globe-side visibility (anonymous mode, repo sharing on the live globe, profile m
 
 ## Source code
 
-This is the standalone repository for the Zed marketplace. The full source code (including `server/src/`) lives in the main DevGlobe extensions monorepo: [Nako0/devglobe-extension](https://github.com/Nako0/devglobe-extension).
+This is the standalone repository for the Zed marketplace. The full source code lives in the main DevGlobe extensions monorepo: [Nako0/devglobe-extension](https://github.com/Nako0/devglobe-extension).

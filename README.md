@@ -1,17 +1,17 @@
 # DevGlobe — Zed Extension
 
-Show your live coding presence on the [DevGlobe](https://devglobe.xyz) world map from Zed.
+Show your live coding presence on the [DevGlobe](https://devglobe.app) world map from Zed.
 
 ## Requirements
 
 - [Zed](https://zed.dev) editor
-- A DevGlobe API key from [devglobe.xyz/dashboard/settings](https://devglobe.xyz/dashboard/settings)
+- A DevGlobe API key from [devglobe.app/dashboard/settings](https://devglobe.app/dashboard/settings)
 
 ## Setup
 
 ### 1. Get your API key
 
-Sign in on [devglobe.xyz](https://devglobe.xyz) with GitHub, X (Twitter), or Google, then copy your API key from [profile settings](https://devglobe.xyz/dashboard/settings).
+Sign in on [devglobe.app](https://devglobe.app) with GitHub, X (Twitter), or Google, then copy your API key from [profile settings](https://devglobe.app/dashboard/settings).
 
 ### 2. Install the extension
 
@@ -34,7 +34,7 @@ api_key = "devglobe_YOUR_KEY_HERE"
 EOF
 ```
 
-Visibility settings (anonymous mode, repo sharing on the live globe, profile mode) are managed on [devglobe.xyz/dashboard/settings](https://devglobe.xyz/dashboard/settings).
+Visibility settings (anonymous mode, repo sharing on the live globe, profile mode) are managed on [devglobe.app/dashboard/settings](https://devglobe.app/dashboard/settings).
 
 ### 4. Trust your project
 
@@ -60,7 +60,7 @@ Files outside any git repository are not tracked beyond their language. We never
 
 Local privacy flags can be toggled in `~/.devglobe/config.toml` under `[privacy]`: `hide_file_names`, `hide_branch_names`, `hide_project_names` (the project flag also hides branches).
 
-Globe-side visibility (anonymous mode, repo sharing on the live globe, profile mode) is managed on [devglobe.xyz/dashboard/settings](https://devglobe.xyz/dashboard/settings).
+Globe-side visibility (anonymous mode, repo sharing on the live globe, profile mode) is managed on [devglobe.app/dashboard/settings](https://devglobe.app/dashboard/settings).
 
 ## Source code
 
